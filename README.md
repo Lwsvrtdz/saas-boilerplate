@@ -4,32 +4,33 @@ A reusable starter template for building SaaS applications with:
 
 - Laravel as an API-first backend
 - Nuxt as a separate frontend in `/frontend`
-- A modular monolith backend structure under `/src/Modules`
+- a modular monolith backend structure under `/src/Modules`
+- optional Laravel Sail for a clean Docker-based local setup
 
-This boilerplate is intentionally generic. It gives you a solid foundation for authentication, authorization, tenant-ready architecture, and a reusable frontend shell without locking you into a specific product idea.
+This boilerplate is intentionally generic. It gives you a strong starting point for authentication, authorization, tenant-aware architecture, and a reusable frontend shell without pushing you toward a specific product idea.
 
 ## Who This Is For
 
 This starter is a good fit if you want:
 
-- a clean base for future SaaS projects
-- Laravel business logic organized by domain, not scattered across `app/`
+- a reusable base for future SaaS projects
+- Laravel business logic organized by domain instead of scattered through `app/`
 - a separate frontend app instead of Blade or Laravel Vite scaffolding
-- a tenant or organization-aware system from the start
-- something structured enough to scale, but still lightweight
+- tenant and access-control concepts considered early
+- a project that stays lightweight while still being structured
 
-If you are curious about modular monoliths but do not want the overhead of microservices, this is a practical place to start.
+If you are curious about modular monoliths but do not want the overhead of microservices, this is a practical way to work.
 
 ## Core Idea
 
 The main convention in this project is:
 
 - `app/` stays thin and Laravel-specific
-- `src/Modules/` holds the real domain code
+- `src/Modules/` holds the real backend domain code
 - `routes/api.php` is the main application surface
 - `frontend/` is a standalone Nuxt app that talks to the Laravel API
 
-That means your future product logic should mostly grow inside modules such as `Identity`, `Tenancy`, `Access`, or your own custom modules.
+That means most future product work should grow inside modules such as `Identity`, `Tenancy`, `Access`, or your own custom modules.
 
 ## Project Structure
 
@@ -43,9 +44,10 @@ routes/api.php          Main API routes
 routes/web.php          Minimal safe fallback
 src/Modules/            Main backend application code
 tests/                  Pest tests
+compose.yaml            Sail/Docker local development setup
 ```
 
-### Backend Modules
+## Backend Modules
 
 Current modules included in the starter:
 
@@ -77,22 +79,23 @@ Benefits of this structure:
 - business logic is separated from framework glue
 - the frontend can evolve independently from the backend
 - future SaaS projects can start from a cleaner, more reusable base
-- tenant, role, and permission concepts are considered early instead of bolted on later
+- tenant, role, and permission concepts are built in early instead of bolted on later
 
-## What’s Included
+## What's Included
 
 - API-first Laravel setup
 - Composer autoloading for `Modules\\` => `src/Modules/`
-- Separate Nuxt frontend in `/frontend`
-- Shared API abstractions for controllers, DTOs, responses, and exceptions
-- Authentication foundation with login, logout, and `me`
-- Role and permission-ready authorization structure
-- Organization-based tenant/account boundary
+- separate Nuxt frontend in `/frontend`
+- shared API abstractions for controllers, DTOs, responses, and exceptions
+- authentication foundation with login, logout, and `me`
+- role and permission-ready authorization structure
+- organization-based tenant/account boundary
 - Pest testing setup
-- Generic factories, migrations, and seeders
-- Template-safe repository structure for reuse
+- generic factories, migrations, and seeders
+- Laravel Sail-ready Docker setup for backend, MySQL, and Nuxt development
+- template-safe repository structure for reuse
 
-## What’s Intentionally Minimal
+## What's Intentionally Minimal
 
 This is a foundation, not a finished product.
 
@@ -111,53 +114,47 @@ The goal is to keep the starter clean and reusable.
 
 ## Getting Started
 
-### 1. Install backend dependencies
+You can use this project in two ways:
+
+- native local development
+- Laravel Sail with Docker
+
+If you already have PHP, Composer, Node, and a database locally, native development is fine. If you want a more consistent setup across machines, use Sail.
+
+### Native Local Setup
+
+1. Install backend dependencies
 
 ```bash
 composer install
 ```
 
-### 2. Create your environment file
+2. Create your environment file
 
 ```bash
 cp .env.example .env
 php artisan key:generate
 ```
 
-### 3. Update Composer autoloads
-
-This project uses:
-
-- `App\\` => `app/`
-- `Modules\\` => `src/Modules/`
-- `Database\\Factories\\` => `database/factories/`
-- `Database\\Seeders\\` => `database/seeders/`
-
-After cloning or changing autoloaded classes, run:
+3. Refresh Composer autoloads
 
 ```bash
 composer dump-autoload
 ```
 
-### 4. Run the database
+4. Run migrations and seeders
 
 ```bash
 php artisan migrate --seed
 ```
 
-### 5. Start the backend
+5. Start Laravel
 
 ```bash
 php artisan serve
 ```
 
-By default the API will be available under:
-
-```text
-http://localhost:8000/api
-```
-
-### 6. Install and run the frontend
+6. Start Nuxt
 
 ```bash
 cd frontend
@@ -165,17 +162,124 @@ npm install
 npm run dev
 ```
 
-By default the Nuxt app is expected at:
+Default URLs:
 
-```text
-http://localhost:3000
+- backend: `http://localhost:8000`
+- API: `http://localhost:8000/api`
+- frontend: `http://localhost:3000`
+
+## Laravel Sail
+
+This project includes a boilerplate-friendly Sail setup that works with:
+
+- the Laravel backend
+- a MySQL database
+- the separate Nuxt frontend in `/frontend`
+
+The Docker setup does not change the architecture. It only gives you a clean local environment for running it.
+
+### Sail Services
+
+The included `compose.yaml` defines:
+
+- `laravel.test`
+  The Laravel application container using the Sail PHP runtime.
+
+- `mysql`
+  A generic MySQL database for local development.
+
+- `frontend`
+  A minimal Nuxt development container for the separate frontend app.
+
+### Sail First-Time Setup
+
+1. Install backend dependencies
+
+```bash
+composer install
 ```
+
+2. Create your environment file
+
+```bash
+cp .env.example .env
+composer dump-autoload
+```
+
+3. Start Sail
+
+macOS/Linux:
+
+```bash
+./vendor/bin/sail up -d
+```
+
+Windows PowerShell:
+
+```powershell
+vendor\bin\sail up -d
+```
+
+4. Initialize Laravel inside the container
+
+macOS/Linux:
+
+```bash
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate --seed
+```
+
+Windows PowerShell:
+
+```powershell
+vendor\bin\sail artisan key:generate
+vendor\bin\sail artisan migrate --seed
+```
+
+### Sail URLs
+
+- backend: `http://localhost:8000`
+- API: `http://localhost:8000/api`
+- frontend: `http://localhost:3000`
+- MySQL forwarded port: `3306`
+
+If you change ports in `.env`, the containers will follow those values.
+
+### Sail Environment Variables
+
+Important starter values in `.env.example`:
+
+- `APP_PORT`
+- `FRONTEND_PORT`
+- `FORWARD_DB_PORT`
+- `DB_DATABASE`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `WWWUSER`
+- `WWWGROUP`
+- `SAIL_XDEBUG_MODE`
+
+These defaults are meant to stay generic and template-friendly.
+
+### Frontend Container Notes
+
+The frontend container is intentionally minimal:
+
+- it runs the Nuxt development server
+- it mounts the existing `/frontend` app
+- it keeps frontend dependencies in a Docker volume
+
+If a team prefers to run Nuxt outside Docker, they still can. The Sail setup does not require any frontend re-architecture.
 
 ## Environment Notes
 
 Backend `.env.example` includes generic starter settings such as:
 
+- `APP_URL`
 - `FRONTEND_URL`
+- `APP_PORT`
+- `FRONTEND_PORT`
+- `FORWARD_DB_PORT`
 - `AUTH_GUARD`
 - `TENANCY_ORGANIZATION_HEADER`
 - `API_TOKEN_TTL_MINUTES`
@@ -213,7 +317,7 @@ That means:
 - requests can resolve organization context from a header or current selection
 - roles can be global or organization-scoped
 
-This is meant to stay generic enough for SaaS apps using:
+This is generic enough for SaaS apps using:
 
 - workspaces
 - teams
@@ -244,12 +348,19 @@ It is not designed as a demo product UI. It is designed as a clean place to begi
 
 This project uses Pest for tests.
 
-Recommended commands:
+Recommended native commands:
 
 ```bash
 php artisan test
 vendor/bin/pest
 vendor/bin/pint
+```
+
+Recommended Sail commands:
+
+```bash
+./vendor/bin/sail artisan test
+./vendor/bin/sail pint
 ```
 
 If you change PHP files, run Pint before committing.
@@ -299,6 +410,7 @@ It gives you:
 - a maintainable backend structure
 - a reusable frontend foundation
 - tenant and access concepts early
+- a clean Docker path through Sail
 - enough structure to scale
 
 But it still leaves space for you to shape the app around your own domain.

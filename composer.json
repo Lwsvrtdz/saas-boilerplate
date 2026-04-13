@@ -16,6 +16,7 @@
     "require-dev": {
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.2.5",
+        "laravel/sail": "^1.41",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
@@ -46,6 +47,16 @@
             "Composer\\Config::disableProcessTimeout",
             "@php artisan serve"
         ],
+        "dev:sail": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php vendor/bin/sail up"
+        ],
+        "dev:sail-detached": [
+            "@php vendor/bin/sail up -d"
+        ],
+        "dev:sail-down": [
+            "@php vendor/bin/sail down"
+        ],
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
@@ -63,7 +74,6 @@
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi",
-            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
             "@php artisan migrate --graceful --ansi"
         ],
         "pre-package-uninstall": [
