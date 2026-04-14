@@ -47,6 +47,8 @@ tests/                  Pest tests
 compose.yaml            Sail/Docker local development setup
 ```
 
+Root `tests/` is intentionally kept light. App-facing tests should live with their module under `src/Modules/<Module>/Tests`.
+
 ## Backend Modules
 
 Current modules included in the starter:
@@ -347,6 +349,41 @@ It is not designed as a demo product UI. It is designed as a clean place to begi
 ## Testing and Quality
 
 This project uses Pest for tests.
+
+Test placement convention:
+
+- `tests/` is only for global Pest bootstrap and shared Laravel test support
+- `src/Modules/<Module>/Tests/Feature` is the default home for module endpoint and DB-backed tests
+- `src/Modules/<Module>/Tests/Unit` is the default home for module unit tests
+- `src/Modules/Shared/Tests/Integration` is the home for cross-module integration tests
+
+This keeps test ownership close to the code while still allowing `php artisan test` to run the full suite with no extra flags.
+
+### Where To Put New Tests
+
+As the app grows, do not place new application tests in the root `tests/Feature` or `tests/Unit` folders.
+
+Use this rule instead:
+
+- if a test belongs to one module, place it inside that module
+- if a test is a unit test, place it in `src/Modules/<Module>/Tests/Unit`
+- if a test hits routes, middleware, database state, or full Laravel behavior, place it in `src/Modules/<Module>/Tests/Feature`
+- if a test covers interaction between multiple modules and does not have a single clear owner, place it in `src/Modules/Shared/Tests/Integration`
+
+Examples:
+
+- auth endpoint tests go in `src/Modules/Identity/Tests/Feature`
+- tenancy membership tests go in `src/Modules/Tenancy/Tests/Feature`
+- permission service tests go in `src/Modules/Access/Tests/Unit`
+- end-to-end behavior spanning identity, access, and tenancy goes in `src/Modules/Shared/Tests/Integration`
+
+Keep root `tests/` for:
+
+- `tests/Pest.php`
+- `tests/TestCase.php`
+- future global test helpers only when they are shared across the whole application
+
+This is the long-term default for the boilerplate.
 
 Recommended native commands:
 

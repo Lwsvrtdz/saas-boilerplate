@@ -3,6 +3,10 @@
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+$moduleFeatureDirectories = glob(__DIR__.'/../src/Modules/*/Tests/Feature') ?: [];
+$moduleUnitDirectories = glob(__DIR__.'/../src/Modules/*/Tests/Unit') ?: [];
+$moduleIntegrationDirectories = glob(__DIR__.'/../src/Modules/*/Tests/Integration') ?: [];
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -16,7 +20,10 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
-    ->in('Feature');
+    ->in(...$moduleFeatureDirectories, ...$moduleIntegrationDirectories);
+
+pest()->extend(TestCase::class)
+    ->in(...$moduleUnitDirectories);
 
 /*
 |--------------------------------------------------------------------------
