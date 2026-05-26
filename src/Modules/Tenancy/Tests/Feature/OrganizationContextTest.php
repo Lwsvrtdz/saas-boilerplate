@@ -23,3 +23,25 @@ it('lists the organizations available to the authenticated user', function (): v
         ->assertOk()
         ->assertJsonPath('data.0.slug', $organization->slug);
 });
+
+it('sets the resolved organization as the current spatie tenant', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create();
+
+    OrganizationMembership::query()->create([
+        'organization_id' => $organization->getKey(),
+        'user_id' => $user->getKey(),
+        'title' => 'Member',
+        'is_owner' => false,
+    ]);
+
+    $token = app(ApiTokenService::class)->issue($user)['plain_text_token'];
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->withHeader('X-Organization', $organization->slug)
+        ->getJson('/api/organizations/current')
+        ->assertOk()
+        ->assertJsonPath('data.slug', $organization->slug);
+
+    expect(Organization::current()?->is($organization))->toBeTrue();
+});

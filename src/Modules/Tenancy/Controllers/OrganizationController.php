@@ -24,7 +24,8 @@ class OrganizationController extends ApiController
 
     public function current(Request $request): JsonResponse
     {
-        $organization = $request->attributes->get('current_organization');
+        $organization = Organization::current()
+            ?? $request->attributes->get('current_organization');
 
         return $this->success(
             $organization instanceof Organization ? OrganizationData::fromModel($organization)->toArray() : null

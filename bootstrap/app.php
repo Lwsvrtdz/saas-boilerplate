@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'organization.context' => \Modules\Tenancy\Http\Middleware\ResolveOrganizationContext::class,
             'permission' => \Modules\Access\Http\Middleware\EnsurePermission::class,
             'role' => \Modules\Access\Http\Middleware\EnsureRole::class,
+            'tenant' => \Spatie\Multitenancy\Http\Middleware\NeedsTenant::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

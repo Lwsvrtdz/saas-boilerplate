@@ -9,11 +9,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\User\Models\User;
+use Spatie\Multitenancy\Contracts\IsTenant;
+use Spatie\Multitenancy\Models\Concerns\ImplementsTenant;
+use Spatie\Multitenancy\Models\Concerns\UsesLandlordConnection;
 
-class Organization extends Model
+class Organization extends Model implements IsTenant
 {
     /** @use HasFactory<OrganizationFactory> */
     use HasFactory;
+    use ImplementsTenant;
+    use UsesLandlordConnection;
 
     protected $fillable = [
         'name',

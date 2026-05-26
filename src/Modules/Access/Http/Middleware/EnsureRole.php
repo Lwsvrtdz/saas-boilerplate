@@ -19,7 +19,8 @@ class EnsureRole
     public function handle(Request $request, Closure $next, string $role): Response
     {
         $user = $request->user();
-        $organization = $request->attributes->get('current_organization');
+        $organization = Organization::current()
+            ?? $request->attributes->get('current_organization');
 
         if ($user === null) {
             throw ApiException::unauthorized();

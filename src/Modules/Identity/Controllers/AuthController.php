@@ -38,7 +38,8 @@ class AuthController extends ApiController
 
     public function me(Request $request): JsonResponse
     {
-        $organization = $request->attributes->get('current_organization');
+        $organization = Organization::current()
+            ?? $request->attributes->get('current_organization');
 
         return $this->success([
             'user' => UserData::fromModel($request->user())?->toArray(),
