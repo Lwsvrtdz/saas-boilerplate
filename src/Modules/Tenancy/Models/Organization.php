@@ -58,4 +58,9 @@ class Organization extends Model implements IsTenant
     {
         return $this->hasMany(OrganizationMembership::class);
     }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(OrganizationInvitation::class);
+    }
 }

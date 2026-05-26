@@ -5,6 +5,7 @@ use Modules\Access\Controllers\AccessController;
 use Modules\Admin\Controllers\AdminDashboardController;
 use Modules\Identity\Controllers\AuthController;
 use Modules\Tenancy\Controllers\OrganizationController;
+use Modules\Tenancy\Controllers\OrganizationInvitationController;
 use Modules\User\Controllers\UserController;
 
 Route::prefix('auth')->group(function (): void {
@@ -18,9 +19,15 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
+Route::post('invitations/accept', [OrganizationInvitationController::class, 'accept'])
+    ->middleware('auth:api');
+
 Route::middleware(['auth:api', 'organization.context'])->group(function (): void {
     Route::get('me/organizations', [OrganizationController::class, 'index']);
     Route::get('organizations/current', [OrganizationController::class, 'current']);
+    Route::get('organizations/current/invitations', [OrganizationInvitationController::class, 'index']);
+    Route::post('organizations/current/invitations', [OrganizationInvitationController::class, 'store']);
+    Route::delete('organizations/current/invitations/{id}', [OrganizationInvitationController::class, 'destroy']);
     Route::get('access/roles', [AccessController::class, 'roles']);
     Route::get('access/permissions', [AccessController::class, 'permissions']);
 });

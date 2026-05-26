@@ -1,9 +1,18 @@
 <?php
 
+use Database\Seeders\AccessControlSeeder;
+use Modules\Access\Models\Role;
+use Modules\Access\Models\RoleAssignment;
+use Modules\Access\Services\AuthorizationService;
 use Modules\Identity\Services\ApiTokenService;
 use Modules\Tenancy\Models\Organization;
+use Modules\Tenancy\Models\OrganizationInvitation;
 use Modules\Tenancy\Models\OrganizationMembership;
 use Modules\User\Models\User;
+
+beforeEach(function (): void {
+    $this->seed(AccessControlSeeder::class);
+});
 
 it('lists the organizations available to the authenticated user', function (): void {
     $user = User::factory()->create();
@@ -116,4 +125,160 @@ it('returns not found when switching to a missing organization', function (): vo
         ->assertNotFound();
 
     expect($user->fresh()->current_organization_id)->toBeNull();
+});
+
+it('creates and lists organization invitations for organization managers', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $ownerRole = Role::query()->where('slug', 'owner')->firstOrFail();
+    $memberRole = Role::query()->where('slug', 'member')->firstOrFail();
+
+    OrganizationMembership::query()->create([
+        'organization_id' => $organization->getKey(),
+        'user_id' => $user->getKey(),
+        'title' => 'Owner',
+        'is_owner' => true,
+    ]);
+
+    $user->forceFill(['current_organization_id' => $organization->getKey()])->save();
+    app(AuthorizationService::class)->assignRole($user, $ownerRole, $organization);
+
+    $token = app(ApiTokenService::class)->issue($user)['plain_text_token'];
+
+    $response = $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/organizations/current/invitations', [
+            'email' => 'invitee@example.com',
+            'role_id' => $memberRole->getKey(),
+        ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('message', 'Invitation created.')
+        ->assertJsonPath('data.invitation.email', 'invitee@example.com')
+        ->assertJsonPath('data.invitation.roleId', $memberRole->getKey())
+        ->assertJsonStructure(['data' => ['token']]);
+
+    expect(hash('sha256', $response->json('data.token')))
+        ->toBe(OrganizationInvitation::query()->firstOrFail()->token_hash);
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->getJson('/api/organizations/current/invitations')
+        ->assertOk()
+        ->assertJsonPath('data.0.email', 'invitee@example.com');
+});
+
+it('blocks users without organization management access from inviting members', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create();
+
+    OrganizationMembership::query()->create([
+        'organization_id' => $organization->getKey(),
+        'user_id' => $user->getKey(),
+        'title' => 'Member',
+        'is_owner' => false,
+    ]);
+
+    $user->forceFill(['current_organization_id' => $organization->getKey()])->save();
+
+    $token = app(ApiTokenService::class)->issue($user)['plain_text_token'];
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/organizations/current/invitations', [
+            'email' => 'invitee@example.com',
+        ])
+        ->assertForbidden();
+
+    expect(OrganizationInvitation::query()->count())->toBe(0);
+});
+
+it('deletes organization invitations for organization managers', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $ownerRole = Role::query()->where('slug', 'owner')->firstOrFail();
+
+    OrganizationMembership::query()->create([
+        'organization_id' => $organization->getKey(),
+        'user_id' => $user->getKey(),
+        'title' => 'Owner',
+        'is_owner' => true,
+    ]);
+
+    $user->forceFill(['current_organization_id' => $organization->getKey()])->save();
+    app(AuthorizationService::class)->assignRole($user, $ownerRole, $organization);
+
+    $invitation = OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'token_hash' => hash('sha256', str_repeat('a', 64)),
+        'invited_by_user_id' => $user->getKey(),
+        'expires_at' => now()->addDay(),
+    ]);
+
+    $token = app(ApiTokenService::class)->issue($user)['plain_text_token'];
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->deleteJson("/api/organizations/current/invitations/{$invitation->getKey()}")
+        ->assertNoContent();
+
+    expect(OrganizationInvitation::query()->count())->toBe(0);
+});
+
+it('accepts an invitation when the authenticated user email matches', function (): void {
+    $inviter = User::factory()->create();
+    $invitee = User::factory()->create(['email' => 'invitee@example.com']);
+    $organization = Organization::factory()->create();
+    $memberRole = Role::query()->where('slug', 'member')->firstOrFail();
+    $plainTextInvitationToken = str_repeat('b', 64);
+
+    $invitation = OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'role_id' => $memberRole->getKey(),
+        'token_hash' => hash('sha256', $plainTextInvitationToken),
+        'invited_by_user_id' => $inviter->getKey(),
+        'expires_at' => now()->addDay(),
+    ]);
+
+    $token = app(ApiTokenService::class)->issue($invitee)['plain_text_token'];
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/invitations/accept', [
+            'token' => $plainTextInvitationToken,
+        ])
+        ->assertOk()
+        ->assertJsonPath('message', 'Invitation accepted.')
+        ->assertJsonPath('data.organization.slug', $organization->slug);
+
+    expect($invitee->organizations()->whereKey($organization->getKey())->exists())->toBeTrue()
+        ->and($invitation->fresh()->accepted_at)->not->toBeNull()
+        ->and(RoleAssignment::query()
+            ->where('role_id', $memberRole->getKey())
+            ->where('user_id', $invitee->getKey())
+            ->where('organization_id', $organization->getKey())
+            ->exists())->toBeTrue();
+});
+
+it('blocks accepting an invitation for a different email address', function (): void {
+    $inviter = User::factory()->create();
+    $invitee = User::factory()->create(['email' => 'other@example.com']);
+    $organization = Organization::factory()->create();
+    $plainTextInvitationToken = str_repeat('c', 64);
+
+    OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'token_hash' => hash('sha256', $plainTextInvitationToken),
+        'invited_by_user_id' => $inviter->getKey(),
+        'expires_at' => now()->addDay(),
+    ]);
+
+    $token = app(ApiTokenService::class)->issue($invitee)['plain_text_token'];
+
+    $this->withHeader('Authorization', 'Bearer '.$token)
+        ->postJson('/api/invitations/accept', [
+            'token' => $plainTextInvitationToken,
+        ])
+        ->assertForbidden();
+
+    expect($invitee->organizations()->whereKey($organization->getKey())->exists())->toBeFalse();
 });
