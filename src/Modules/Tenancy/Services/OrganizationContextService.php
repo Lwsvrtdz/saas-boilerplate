@@ -29,6 +29,21 @@ class OrganizationContextService
         return $this->resolveForUser($user, $identifier);
     }
 
+    public function switchCurrentOrganization(User $user, string $identifier): Organization
+    {
+        Organization::forgetCurrent();
+
+        $organization = $this->resolveForUser($user, $identifier);
+
+        $user->forceFill([
+            'current_organization_id' => $organization->getKey(),
+        ])->save();
+
+        $organization->makeCurrent();
+
+        return $organization;
+    }
+
     protected function resolveIdentifier(Request $request): ?string
     {
         $headerName = (string) config('boilerplate.organization_header', 'X-Organization');
