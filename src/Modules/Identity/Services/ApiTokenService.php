@@ -48,7 +48,7 @@ class ApiTokenService
             return null;
         }
 
-        if ($token->expires_at instanceof Carbon && $token->expires_at->isPast()) {
+        if (! $token->expires_at instanceof Carbon || $token->expires_at->isPast()) {
             $token->delete();
 
             return null;

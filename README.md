@@ -54,7 +54,7 @@ Root `tests/` is intentionally kept light. App-facing tests should live with the
 Current modules included in the starter:
 
 - `Shared`
-  Common API controller base class, DTO helpers, API responses, and exceptions.
+  Common data base classes and reusable API exceptions.
 
 - `Identity`
   Login, logout, current user endpoint, and API token authentication foundation.
@@ -88,10 +88,11 @@ Benefits of this structure:
 - API-first Laravel setup
 - Composer autoloading for `Modules\\` => `src/Modules/`
 - separate Nuxt frontend in `/frontend`
-- shared API abstractions for controllers, DTOs, responses, and exceptions
-- authentication foundation with login, logout, and `me`
+- Spatie Laravel Data objects for request validation and API resources
+- authentication foundation with registration, login, logout, and `me`
 - role and permission-ready authorization structure
 - organization-based tenant/account boundary
+- demo seed data for a first local login
 - Pest testing setup
 - generic factories, migrations, and seeders
 - Laravel Sail-ready Docker setup for backend, MySQL, and Nuxt development
@@ -103,11 +104,9 @@ This is a foundation, not a finished product.
 
 The following are intentionally left light or unimplemented:
 
-- registration flows
 - email verification UX
 - password reset UX
 - billing and subscriptions
-- invitations
 - audit logs
 - product-specific dashboards and widgets
 - industry-specific domain features
@@ -284,6 +283,7 @@ Backend `.env.example` includes generic starter settings such as:
 - `FORWARD_DB_PORT`
 - `AUTH_GUARD`
 - `TENANCY_ORGANIZATION_HEADER`
+- `AUTH_RATE_LIMIT_PER_MINUTE`
 - `API_TOKEN_TTL_MINUTES`
 
 Frontend `.env.example` includes:
@@ -295,9 +295,13 @@ Frontend `.env.example` includes:
 
 The starter includes a lightweight reusable auth foundation:
 
+- `POST /api/auth/register`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
+
+Login and registration routes are rate-limited through `AUTH_RATE_LIMIT_PER_MINUTE`.
+API tokens expire according to `API_TOKEN_TTL_MINUTES`; expired or legacy non-expiring tokens are rejected.
 
 Access control is structured around:
 
@@ -340,7 +344,9 @@ Included in `/frontend`:
 - components
 - composables
 - plugins
-- auth flow
+- login and registration flow
+- auth and guest route middleware
+- organization switching
 - app shell
 - admin page foundation
 
@@ -391,6 +397,7 @@ Recommended native commands:
 php artisan test
 vendor/bin/pest
 vendor/bin/pint
+cd frontend && npm run build
 ```
 
 Recommended Sail commands:
@@ -398,9 +405,20 @@ Recommended Sail commands:
 ```bash
 ./vendor/bin/sail artisan test
 ./vendor/bin/sail pint
+./vendor/bin/sail npm --prefix frontend run build
 ```
 
 If you change PHP files, run Pint before committing.
+
+## Demo Login
+
+Running `php artisan migrate --seed` creates generic demo accounts:
+
+- `owner@example.com` / `password`
+- `admin@example.com` / `password`
+- `member@example.com` / `password`
+
+The demo organization is `Demo Company`. These records are intentionally plain and should be replaced or removed for real projects.
 
 ## Recommended Workflow for New Projects
 

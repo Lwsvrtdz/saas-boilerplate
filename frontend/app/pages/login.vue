@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: [] })
+definePageMeta({ middleware: ['guest'] })
 
 const auth = useAuth()
 const form = reactive({
@@ -25,9 +25,8 @@ const submit = async () => {
   <AuthCard>
     <div class="stack">
       <div>
-        <div class="muted" style="text-transform:uppercase;letter-spacing:0.18em;font-size:0.8rem;">Authentication</div>
-        <h1 style="margin:0.3rem 0 0;">Sign in</h1>
-        <p class="muted">Swap this screen for your product-specific onboarding, SSO, invites, or registration flow.</p>
+        <h1>Sign in</h1>
+        <p class="muted">Access your workspace.</p>
       </div>
 
       <form class="stack" @submit.prevent="submit">
@@ -45,6 +44,11 @@ const submit = async () => {
 
         <button class="button" type="submit">Continue</button>
       </form>
+
+      <p class="muted auth-link">
+        Need an account?
+        <NuxtLink to="/register">Create one</NuxtLink>
+      </p>
     </div>
   </AuthCard>
 </template>

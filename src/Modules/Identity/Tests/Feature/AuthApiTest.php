@@ -1,6 +1,7 @@
 <?php
 
 use Database\Seeders\AccessControlSeeder;
+use Illuminate\Support\Facades\RateLimiter;
 use Modules\Access\Models\Role;
 use Modules\Access\Models\RoleAssignment;
 use Modules\Access\Services\AuthorizationService;
@@ -12,6 +13,7 @@ use Modules\User\Models\User;
 
 beforeEach(function (): void {
     $this->seed(AccessControlSeeder::class);
+    RateLimiter::clear('127.0.0.1|limited@example.com');
 });
 
 it('can register a user with their first organization and owner access', function (): void {
@@ -61,6 +63,25 @@ it('validates registration input', function (): void {
     ])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['name', 'email', 'password']);
+});
+
+it('rate limits repeated login attempts', function (): void {
+    User::factory()->create([
+        'email' => 'limited@example.com',
+        'password' => 'password',
+    ]);
+
+    foreach (range(1, 5) as $attempt) {
+        $this->postJson('/api/auth/login', [
+            'email' => 'limited@example.com',
+            'password' => 'wrong-password',
+        ])->assertUnauthorized();
+    }
+
+    $this->postJson('/api/auth/login', [
+        'email' => 'limited@example.com',
+        'password' => 'wrong-password',
+    ])->assertTooManyRequests();
 });
 
 it('can log in and receive the authenticated user payload', function (): void {
@@ -117,6 +138,44 @@ it('returns the current authenticated user and organization context', function (
         ->assertJsonPath('user.email', $user->email);
 });
 
+it('returns a consistent unauthorized response without an api token', function (): void {
+    $this->getJson('/api/auth/me')
+        ->assertUnauthorized()
+        ->assertJsonPath('message', 'Unauthenticated.')
+        ->assertJsonPath('errors', []);
+});
+
+it('rejects and deletes expired api tokens', function (): void {
+    $user = User::factory()->create();
+    $issuedToken = app(ApiTokenService::class)->issue($user);
+
+    $issuedToken['token']->forceFill([
+        'expires_at' => now()->subMinute(),
+    ])->save();
+
+    $this->withHeader('Authorization', 'Bearer '.$issuedToken['plain_text_token'])
+        ->getJson('/api/auth/me')
+        ->assertUnauthorized()
+        ->assertJsonPath('message', 'Unauthenticated.');
+
+    expect(ApiToken::query()->whereKey($issuedToken['token']->getKey())->exists())->toBeFalse();
+});
+
+it('rejects legacy api tokens without an expiration timestamp', function (): void {
+    $user = User::factory()->create();
+    $issuedToken = app(ApiTokenService::class)->issue($user);
+
+    $issuedToken['token']->forceFill([
+        'expires_at' => null,
+    ])->save();
+
+    $this->withHeader('Authorization', 'Bearer '.$issuedToken['plain_text_token'])
+        ->getJson('/api/auth/me')
+        ->assertUnauthorized();
+
+    expect(ApiToken::query()->whereKey($issuedToken['token']->getKey())->exists())->toBeFalse();
+});
+
 it('allows admins to access the admin overview', function (): void {
     $user = User::factory()->create();
     $role = Role::query()->where('slug', 'admin')->firstOrFail();
@@ -139,5 +198,7 @@ it('blocks non admins from the admin overview', function (): void {
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/admin/overview')
-        ->assertForbidden();
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Admin access is required.')
+        ->assertJsonPath('errors', []);
 });
