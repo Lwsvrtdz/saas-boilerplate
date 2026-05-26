@@ -2,29 +2,22 @@
 
 namespace Modules\User\Controllers;
 
-use Illuminate\Http\JsonResponse;
-use Modules\Shared\Controllers\ApiController;
-use Modules\Shared\Responses\ApiResponse;
 use Modules\User\DataTransferObjects\UserData;
 use Modules\User\Models\User;
-use Spatie\LaravelData\DataCollection;
+use Spatie\LaravelData\PaginatedDataCollection;
 
-class UserController extends ApiController
+class UserController
 {
-    public function index(): JsonResponse
+    public function index(): PaginatedDataCollection
     {
         $users = User::query()
             ->with(['currentOrganization', 'organizations'])
             ->orderBy('name')
             ->paginate(15);
 
-        return ApiResponse::paginated(
-            $users,
-            UserData::collect(
-                $users->getCollection()
-                    ->map(fn (User $user): UserData => UserData::fromModel($user)),
-                DataCollection::class
-            )
+        return UserData::collect(
+            $users->through(fn (User $user): UserData => UserData::fromModel($user)),
+            PaginatedDataCollection::class
         );
     }
 }

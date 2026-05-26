@@ -30,7 +30,7 @@ it('lists the organizations available to the authenticated user', function (): v
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/me/organizations')
         ->assertOk()
-        ->assertJsonPath('data.0.slug', $organization->slug);
+        ->assertJsonPath('0.slug', $organization->slug);
 });
 
 it('sets the resolved organization as the current spatie tenant', function (): void {
@@ -50,7 +50,7 @@ it('sets the resolved organization as the current spatie tenant', function (): v
         ->withHeader('X-Organization', $organization->slug)
         ->getJson('/api/organizations/current')
         ->assertOk()
-        ->assertJsonPath('data.slug', $organization->slug);
+        ->assertJsonPath('slug', $organization->slug);
 
     expect(Organization::current()?->is($organization))->toBeTrue();
 });
@@ -83,7 +83,7 @@ it('switches the current organization by id and slug', function (): void {
             'organization_id' => $secondOrganization->getKey(),
         ])
         ->assertOk()
-        ->assertJsonPath('data.slug', $secondOrganization->slug);
+        ->assertJsonPath('slug', $secondOrganization->slug);
 
     expect($user->fresh()->current_organization_id)->toBe($secondOrganization->getKey())
         ->and(Organization::current()?->is($secondOrganization))->toBeTrue();
@@ -93,7 +93,7 @@ it('switches the current organization by id and slug', function (): void {
             'slug' => $firstOrganization->slug,
         ])
         ->assertOk()
-        ->assertJsonPath('data.slug', $firstOrganization->slug);
+        ->assertJsonPath('slug', $firstOrganization->slug);
 
     expect($user->fresh()->current_organization_id)->toBe($firstOrganization->getKey())
         ->and(Organization::current()?->is($firstOrganization))->toBeTrue();
@@ -153,18 +153,17 @@ it('creates and lists organization invitations for organization managers', funct
 
     $response
         ->assertCreated()
-        ->assertJsonPath('message', 'Invitation created.')
-        ->assertJsonPath('data.invitation.email', 'invitee@example.com')
-        ->assertJsonPath('data.invitation.roleId', $memberRole->getKey())
-        ->assertJsonStructure(['data' => ['token']]);
+        ->assertJsonPath('invitation.email', 'invitee@example.com')
+        ->assertJsonPath('invitation.roleId', $memberRole->getKey())
+        ->assertJsonStructure(['token']);
 
-    expect(hash('sha256', $response->json('data.token')))
+    expect(hash('sha256', $response->json('token')))
         ->toBe(OrganizationInvitation::query()->firstOrFail()->token_hash);
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/organizations/current/invitations')
         ->assertOk()
-        ->assertJsonPath('data.0.email', 'invitee@example.com');
+        ->assertJsonPath('0.email', 'invitee@example.com');
 });
 
 it('blocks users without organization management access from inviting members', function (): void {
@@ -246,8 +245,7 @@ it('accepts an invitation when the authenticated user email matches', function (
             'token' => $plainTextInvitationToken,
         ])
         ->assertOk()
-        ->assertJsonPath('message', 'Invitation accepted.')
-        ->assertJsonPath('data.organization.slug', $organization->slug);
+        ->assertJsonPath('organization.slug', $organization->slug);
 
     expect($invitee->organizations()->whereKey($organization->getKey())->exists())->toBeTrue()
         ->and($invitation->fresh()->accepted_at)->not->toBeNull()

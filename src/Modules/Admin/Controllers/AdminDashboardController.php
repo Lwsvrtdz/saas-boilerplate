@@ -2,22 +2,22 @@
 
 namespace Modules\Admin\Controllers;
 
-use Illuminate\Http\JsonResponse;
 use Modules\Access\Models\Role;
-use Modules\Shared\Controllers\ApiController;
+use Modules\Admin\DataTransferObjects\AdminMetricsData;
+use Modules\Admin\DataTransferObjects\AdminOverviewData;
 use Modules\Tenancy\Models\Organization;
 use Modules\User\Models\User;
 
-class AdminDashboardController extends ApiController
+class AdminDashboardController
 {
-    public function show(): JsonResponse
+    public function show(): AdminOverviewData
     {
-        return $this->success([
-            'metrics' => [
-                'users' => User::query()->count(),
-                'organizations' => Organization::query()->count(),
-                'roles' => Role::query()->count(),
-            ],
-        ]);
+        return new AdminOverviewData(
+            metrics: new AdminMetricsData(
+                users: User::query()->count(),
+                organizations: Organization::query()->count(),
+                roles: Role::query()->count(),
+            ),
+        );
     }
 }

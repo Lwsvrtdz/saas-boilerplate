@@ -25,16 +25,13 @@ it('can register a user with their first organization and owner access', functio
 
     $response
         ->assertCreated()
-        ->assertJsonPath('message', 'Registered.')
-        ->assertJsonPath('data.user.email', 'taylor@example.com')
-        ->assertJsonPath('data.user.currentOrganization.slug', 'taylor-otwells-organization')
-        ->assertJsonPath('data.organization.slug', 'taylor-otwells-organization')
+        ->assertJsonPath('user.email', 'taylor@example.com')
+        ->assertJsonPath('user.currentOrganization.slug', 'taylor-otwells-organization')
+        ->assertJsonPath('organization.slug', 'taylor-otwells-organization')
         ->assertJsonStructure([
-            'data' => [
-                'token',
-                'user' => ['id', 'name', 'email', 'currentOrganization', 'organizations'],
-                'organization' => ['id', 'name', 'slug', 'settings'],
-            ],
+            'token',
+            'user' => ['id', 'name', 'email', 'currentOrganization', 'organizations'],
+            'organization' => ['id', 'name', 'slug', 'settings'],
         ]);
 
     $user = User::query()->where('email', 'taylor@example.com')->firstOrFail();
@@ -91,8 +88,8 @@ it('can log in and receive the authenticated user payload', function (): void {
 
     $response
         ->assertOk()
-        ->assertJsonPath('data.user.email', 'owner@example.com')
-        ->assertJsonPath('data.user.currentOrganization.slug', $organization->slug);
+        ->assertJsonPath('user.email', 'owner@example.com')
+        ->assertJsonPath('user.currentOrganization.slug', $organization->slug);
 
     expect(ApiToken::query()->count())->toBe(1);
 });
@@ -116,8 +113,8 @@ it('returns the current authenticated user and organization context', function (
         ->withHeader('X-Organization', $organization->slug)
         ->getJson('/api/auth/me')
         ->assertOk()
-        ->assertJsonPath('data.organization.slug', $organization->slug)
-        ->assertJsonPath('data.user.email', $user->email);
+        ->assertJsonPath('organization.slug', $organization->slug)
+        ->assertJsonPath('user.email', $user->email);
 });
 
 it('allows admins to access the admin overview', function (): void {
@@ -132,11 +129,7 @@ it('allows admins to access the admin overview', function (): void {
         ->getJson('/api/admin/overview')
         ->assertOk()
         ->assertJsonStructure([
-            'message',
-            'data' => [
-                'metrics' => ['users', 'organizations', 'roles'],
-            ],
-            'meta',
+            'metrics' => ['users', 'organizations', 'roles'],
         ]);
 });
 

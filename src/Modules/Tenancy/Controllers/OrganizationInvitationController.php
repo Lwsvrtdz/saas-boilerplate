@@ -2,13 +2,13 @@
 
 namespace Modules\Tenancy\Controllers;
 
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Modules\Shared\Controllers\ApiController;
 use Modules\Shared\Exceptions\ApiException;
+use Modules\Tenancy\DataTransferObjects\AcceptedOrganizationInvitationData;
 use Modules\Tenancy\DataTransferObjects\AcceptOrganizationInvitationData;
 use Modules\Tenancy\DataTransferObjects\CreateOrganizationInvitationData;
+use Modules\Tenancy\DataTransferObjects\CreatedOrganizationInvitationData;
 use Modules\Tenancy\DataTransferObjects\OrganizationData;
 use Modules\Tenancy\DataTransferObjects\OrganizationInvitationData;
 use Modules\Tenancy\Models\Organization;
@@ -17,14 +17,14 @@ use Modules\Tenancy\Services\OrganizationInvitationService;
 use Modules\User\Models\User;
 use Spatie\LaravelData\DataCollection;
 
-class OrganizationInvitationController extends ApiController
+class OrganizationInvitationController
 {
     public function __construct(
         private readonly OrganizationInvitationService $invitationService,
     ) {
     }
 
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): DataCollection
     {
         $organization = $this->currentOrganization($request);
         $user = $this->authenticatedUser($request);
@@ -36,19 +36,17 @@ class OrganizationInvitationController extends ApiController
             ->latest()
             ->get();
 
-        return $this->success(
-            OrganizationInvitationData::collect(
-                $invitations->map(
-                    fn (OrganizationInvitation $invitation): OrganizationInvitationData => OrganizationInvitationData::fromModel(
-                        $invitation
-                    )
-                ),
-                DataCollection::class
-            )
+        return OrganizationInvitationData::collect(
+            $invitations->map(
+                fn (OrganizationInvitation $invitation): OrganizationInvitationData => OrganizationInvitationData::fromModel(
+                    $invitation
+                )
+            ),
+            DataCollection::class
         );
     }
 
-    public function store(CreateOrganizationInvitationData $data, Request $request): JsonResponse
+    public function store(CreateOrganizationInvitationData $data, Request $request): CreatedOrganizationInvitationData
     {
         $payload = $this->invitationService->create(
             $this->currentOrganization($request),
@@ -56,10 +54,10 @@ class OrganizationInvitationController extends ApiController
             $data,
         );
 
-        return $this->created([
-            'invitation' => OrganizationInvitationData::fromModel($payload['invitation']),
-            'token' => $payload['plain_text_token'],
-        ], 'Invitation created.');
+        return new CreatedOrganizationInvitationData(
+            invitation: OrganizationInvitationData::fromModel($payload['invitation']),
+            token: $payload['plain_text_token'],
+        );
     }
 
     public function destroy(Request $request, int $id): Response
@@ -70,20 +68,20 @@ class OrganizationInvitationController extends ApiController
             $id,
         );
 
-        return $this->noContent();
+        return response()->noContent();
     }
 
-    public function accept(AcceptOrganizationInvitationData $data, Request $request): JsonResponse
+    public function accept(AcceptOrganizationInvitationData $data, Request $request): AcceptedOrganizationInvitationData
     {
         $invitation = $this->invitationService->accept(
             $this->authenticatedUser($request),
             $data,
         );
 
-        return $this->success([
-            'invitation' => OrganizationInvitationData::fromModel($invitation),
-            'organization' => OrganizationData::fromModel($invitation->organization),
-        ], 'Invitation accepted.');
+        return new AcceptedOrganizationInvitationData(
+            invitation: OrganizationInvitationData::fromModel($invitation),
+            organization: OrganizationData::fromModel($invitation->organization),
+        );
     }
 
     protected function currentOrganization(Request $request): Organization
