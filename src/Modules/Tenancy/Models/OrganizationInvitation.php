@@ -16,6 +16,7 @@ class OrganizationInvitation extends Model
         'token_hash',
         'invited_by_user_id',
         'accepted_at',
+        'pending_marker',
         'expires_at',
     ];
 
@@ -26,6 +27,7 @@ class OrganizationInvitation extends Model
     {
         return [
             'accepted_at' => 'datetime',
+            'pending_marker' => 'boolean',
             'expires_at' => 'datetime',
         ];
     }

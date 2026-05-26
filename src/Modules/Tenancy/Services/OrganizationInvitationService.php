@@ -2,6 +2,7 @@
 
 namespace Modules\Tenancy\Services;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -32,18 +33,6 @@ class OrganizationInvitationService
     ): array {
         $this->ensureCanManageInvitations($inviter, $organization);
 
-        $email = Str::lower($data->email);
-        $existingPendingInvitation = OrganizationInvitation::query()
-            ->where('organization_id', $organization->getKey())
-            ->where('email', $email)
-            ->whereNull('accepted_at')
-            ->where('expires_at', '>', now())
-            ->exists();
-
-        if ($existingPendingInvitation) {
-            throw new ApiException('A pending invitation already exists for this email.');
-        }
-
         if ($data->roleId !== null) {
             $role = Role::query()
                 ->whereKey($data->roleId)
@@ -55,18 +44,53 @@ class OrganizationInvitationService
             }
         }
 
+        $email = Str::lower($data->email);
         $plainTextToken = bin2hex(random_bytes(32));
 
-        $invitation = OrganizationInvitation::query()->create([
-            'organization_id' => $organization->getKey(),
-            'email' => $email,
-            'role_id' => $data->roleId,
-            'token_hash' => hash('sha256', $plainTextToken),
-            'invited_by_user_id' => $inviter->getKey(),
-            'expires_at' => $data->expiresAt !== null
-                ? Carbon::parse($data->expiresAt)
-                : now()->addDays(7),
-        ]);
+        try {
+            $invitation = DB::transaction(function () use (
+                $organization,
+                $inviter,
+                $data,
+                $email,
+                $plainTextToken,
+            ): OrganizationInvitation {
+                $pendingInvitation = OrganizationInvitation::query()
+                    ->where('organization_id', $organization->getKey())
+                    ->where('email', $email)
+                    ->where('pending_marker', true)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($pendingInvitation instanceof OrganizationInvitation) {
+                    if ($pendingInvitation->expires_at->isFuture()) {
+                        throw new ApiException('A pending invitation already exists for this email.');
+                    }
+
+                    $pendingInvitation->forceFill([
+                        'pending_marker' => null,
+                    ])->save();
+                }
+
+                return OrganizationInvitation::query()->create([
+                    'organization_id' => $organization->getKey(),
+                    'email' => $email,
+                    'role_id' => $data->roleId,
+                    'token_hash' => hash('sha256', $plainTextToken),
+                    'invited_by_user_id' => $inviter->getKey(),
+                    'pending_marker' => true,
+                    'expires_at' => $data->expiresAt !== null
+                        ? Carbon::parse($data->expiresAt)
+                        : now()->addDays(7),
+                ]);
+            });
+        } catch (QueryException $exception) {
+            if ($this->causedByDuplicatePendingInvitation($exception)) {
+                throw new ApiException('A pending invitation already exists for this email.');
+            }
+
+            throw $exception;
+        }
 
         return [
             'invitation' => $invitation,
@@ -96,6 +120,7 @@ class OrganizationInvitationService
             $invitation = OrganizationInvitation::query()
                 ->with(['organization', 'role'])
                 ->where('token_hash', hash('sha256', $data->token))
+                ->where('pending_marker', true)
                 ->whereNull('accepted_at')
                 ->first();
 
@@ -128,6 +153,7 @@ class OrganizationInvitationService
 
             $invitation->forceFill([
                 'accepted_at' => now(),
+                'pending_marker' => null,
             ])->save();
 
             $acceptedInvitation = $invitation->fresh(['organization', 'role']);
@@ -157,5 +183,17 @@ class OrganizationInvitationService
         if (! $canManageOrganization && ! $canManageUsers) {
             throw ApiException::forbidden('Managing organization invitations requires organization or user management access.');
         }
+    }
+
+    protected function causedByDuplicatePendingInvitation(QueryException $exception): bool
+    {
+        $errorInfo = $exception->errorInfo;
+
+        if (! is_array($errorInfo)) {
+            return false;
+        }
+
+        return ($errorInfo[0] ?? null) === '23000'
+            && str_contains((string) ($errorInfo[2] ?? ''), 'organization_invitations_unique_pending');
     }
 }

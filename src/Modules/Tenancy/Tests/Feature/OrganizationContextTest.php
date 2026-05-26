@@ -1,6 +1,7 @@
 <?php
 
 use Database\Seeders\AccessControlSeeder;
+use Illuminate\Database\QueryException;
 use Modules\Access\Models\Role;
 use Modules\Access\Models\RoleAssignment;
 use Modules\Access\Services\AuthorizationService;
@@ -210,6 +211,7 @@ it('deletes organization invitations for organization managers', function (): vo
         'email' => 'invitee@example.com',
         'token_hash' => hash('sha256', str_repeat('a', 64)),
         'invited_by_user_id' => $user->getKey(),
+        'pending_marker' => true,
         'expires_at' => now()->addDay(),
     ]);
 
@@ -235,6 +237,7 @@ it('accepts an invitation when the authenticated user email matches', function (
         'role_id' => $memberRole->getKey(),
         'token_hash' => hash('sha256', $plainTextInvitationToken),
         'invited_by_user_id' => $inviter->getKey(),
+        'pending_marker' => true,
         'expires_at' => now()->addDay(),
     ]);
 
@@ -267,6 +270,7 @@ it('blocks accepting an invitation for a different email address', function (): 
         'email' => 'invitee@example.com',
         'token_hash' => hash('sha256', $plainTextInvitationToken),
         'invited_by_user_id' => $inviter->getKey(),
+        'pending_marker' => true,
         'expires_at' => now()->addDay(),
     ]);
 
@@ -279,4 +283,61 @@ it('blocks accepting an invitation for a different email address', function (): 
         ->assertForbidden();
 
     expect($invitee->organizations()->whereKey($organization->getKey())->exists())->toBeFalse();
+});
+
+it('enforces pending invitation uniqueness at the database level', function (): void {
+    $inviter = User::factory()->create();
+    $organization = Organization::factory()->create();
+
+    OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'token_hash' => hash('sha256', str_repeat('d', 64)),
+        'invited_by_user_id' => $inviter->getKey(),
+        'pending_marker' => true,
+        'expires_at' => now()->addDay(),
+    ]);
+
+    OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'token_hash' => hash('sha256', str_repeat('e', 64)),
+        'invited_by_user_id' => $inviter->getKey(),
+        'pending_marker' => true,
+        'expires_at' => now()->addDays(2),
+    ]);
+})->throws(QueryException::class);
+
+it('allows a new pending invitation after an earlier one is accepted', function (): void {
+    $inviter = User::factory()->create();
+    $invitee = User::factory()->create(['email' => 'invitee@example.com']);
+    $organization = Organization::factory()->create();
+    $plainTextInvitationToken = str_repeat('f', 64);
+
+    $invitation = OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'token_hash' => hash('sha256', $plainTextInvitationToken),
+        'invited_by_user_id' => $inviter->getKey(),
+        'pending_marker' => true,
+        'expires_at' => now()->addDay(),
+    ]);
+
+    app(\Modules\Tenancy\Services\OrganizationInvitationService::class)->accept(
+        $invitee,
+        new \Modules\Tenancy\DataTransferObjects\AcceptOrganizationInvitationData($plainTextInvitationToken),
+    );
+
+    $replacementInvitation = OrganizationInvitation::query()->create([
+        'organization_id' => $organization->getKey(),
+        'email' => 'invitee@example.com',
+        'token_hash' => hash('sha256', str_repeat('g', 64)),
+        'invited_by_user_id' => $inviter->getKey(),
+        'pending_marker' => true,
+        'expires_at' => now()->addDays(2),
+    ]);
+
+    expect($invitation->fresh()?->accepted_at)->not->toBeNull()
+        ->and($invitation->fresh()?->pending_marker)->toBeNull()
+        ->and($replacementInvitation->pending_marker)->toBeTrue();
 });
