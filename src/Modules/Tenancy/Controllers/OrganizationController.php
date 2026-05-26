@@ -7,10 +7,11 @@ use Illuminate\Http\Request;
 use Modules\Shared\Controllers\ApiController;
 use Modules\Shared\Exceptions\ApiException;
 use Modules\Tenancy\DataTransferObjects\OrganizationData;
+use Modules\Tenancy\DataTransferObjects\SwitchOrganizationData;
 use Modules\Tenancy\Models\Organization;
-use Modules\Tenancy\Requests\SwitchOrganizationRequest;
 use Modules\Tenancy\Services\OrganizationContextService;
 use Modules\User\Models\User;
+use Spatie\LaravelData\DataCollection;
 
 class OrganizationController extends ApiController
 {
@@ -24,11 +25,16 @@ class OrganizationController extends ApiController
         $organizations = $request->user()
             ?->organizations()
             ->orderBy('name')
-            ->get()
-            ->map(fn (Organization $organization): array => OrganizationData::fromModel($organization)->toArray())
-            ->all() ?? [];
+            ->get();
 
-        return $this->success($organizations);
+        return $this->success(
+            OrganizationData::collect(
+                ($organizations ?? collect())->map(
+                    fn (Organization $organization): OrganizationData => OrganizationData::fromModel($organization)
+                ),
+                DataCollection::class
+            )
+        );
     }
 
     public function current(Request $request): JsonResponse
@@ -37,11 +43,11 @@ class OrganizationController extends ApiController
             ?? $request->attributes->get('current_organization');
 
         return $this->success(
-            $organization instanceof Organization ? OrganizationData::fromModel($organization)->toArray() : null
+            $organization instanceof Organization ? OrganizationData::fromModel($organization) : null
         );
     }
 
-    public function switch(SwitchOrganizationRequest $request): JsonResponse
+    public function switch(SwitchOrganizationData $data, Request $request): JsonResponse
     {
         $user = $request->user();
 
@@ -51,9 +57,9 @@ class OrganizationController extends ApiController
 
         $organization = $this->organizationContextService->switchCurrentOrganization(
             $user,
-            $request->toDto()->identifier(),
+            $data->identifier(),
         );
 
-        return $this->success(OrganizationData::fromModel($organization)->toArray());
+        return $this->success(OrganizationData::fromModel($organization));
     }
 }

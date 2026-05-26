@@ -3,6 +3,7 @@
 namespace Modules\Shared\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Modules\Shared\Responses\ApiResponse;
 
@@ -25,7 +26,7 @@ abstract class ApiController extends Controller
         return ApiResponse::created($data, $message);
     }
 
-    protected function noContent(): JsonResponse
+    protected function noContent(): Response
     {
         return ApiResponse::noContent();
     }

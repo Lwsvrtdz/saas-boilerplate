@@ -3,7 +3,11 @@
 namespace Modules\Shared\Responses;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response as HttpResponse;
+use JsonSerializable;
+use Spatie\LaravelData\Contracts\TransformableData;
 use Symfony\Component\HttpFoundation\Response;
 
 class ApiResponse
@@ -19,7 +23,7 @@ class ApiResponse
     ): JsonResponse {
         return response()->json([
             'message' => $message,
-            'data' => $data,
+            'data' => self::normalize($data),
             'meta' => (object) $meta,
         ], $status);
     }
@@ -29,9 +33,9 @@ class ApiResponse
         return self::success($data, $message, Response::HTTP_CREATED);
     }
 
-    public static function noContent(): JsonResponse
+    public static function noContent(): HttpResponse
     {
-        return response()->json(status: Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 
     public static function paginated(LengthAwarePaginator $paginator, mixed $data, string $message = 'OK'): JsonResponse
@@ -44,5 +48,26 @@ class ApiResponse
                 'total' => $paginator->total(),
             ],
         ]);
+    }
+
+    protected static function normalize(mixed $value): mixed
+    {
+        if ($value instanceof TransformableData) {
+            return $value->toArray();
+        }
+
+        if ($value instanceof Arrayable) {
+            return $value->toArray();
+        }
+
+        if ($value instanceof JsonSerializable) {
+            return $value->jsonSerialize();
+        }
+
+        if (is_array($value)) {
+            return array_map(fn (mixed $item): mixed => self::normalize($item), $value);
+        }
+
+        return $value;
     }
 }

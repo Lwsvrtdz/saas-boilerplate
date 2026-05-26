@@ -7,6 +7,7 @@ use Modules\Shared\Controllers\ApiController;
 use Modules\Shared\Responses\ApiResponse;
 use Modules\User\DataTransferObjects\UserData;
 use Modules\User\Models\User;
+use Spatie\LaravelData\DataCollection;
 
 class UserController extends ApiController
 {
@@ -19,9 +20,11 @@ class UserController extends ApiController
 
         return ApiResponse::paginated(
             $users,
-            $users->getCollection()
-                ->map(fn (User $user): array => UserData::fromModel($user)?->toArray() ?? [])
-                ->all()
+            UserData::collect(
+                $users->getCollection()
+                    ->map(fn (User $user): UserData => UserData::fromModel($user)),
+                DataCollection::class
+            )
         );
     }
 }

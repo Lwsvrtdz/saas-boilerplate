@@ -4,15 +4,18 @@ namespace Modules\Tenancy\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Modules\Shared\Controllers\ApiController;
 use Modules\Shared\Exceptions\ApiException;
+use Modules\Tenancy\DataTransferObjects\AcceptOrganizationInvitationData;
+use Modules\Tenancy\DataTransferObjects\CreateOrganizationInvitationData;
 use Modules\Tenancy\DataTransferObjects\OrganizationData;
 use Modules\Tenancy\DataTransferObjects\OrganizationInvitationData;
 use Modules\Tenancy\Models\Organization;
-use Modules\Tenancy\Requests\AcceptOrganizationInvitationRequest;
-use Modules\Tenancy\Requests\CreateOrganizationInvitationRequest;
+use Modules\Tenancy\Models\OrganizationInvitation;
 use Modules\Tenancy\Services\OrganizationInvitationService;
 use Modules\User\Models\User;
+use Spatie\LaravelData\DataCollection;
 
 class OrganizationInvitationController extends ApiController
 {
@@ -31,28 +34,35 @@ class OrganizationInvitationController extends ApiController
         $invitations = $organization
             ->invitations()
             ->latest()
-            ->get()
-            ->map(fn ($invitation): array => OrganizationInvitationData::fromModel($invitation)->toArray())
-            ->all();
+            ->get();
 
-        return $this->success($invitations);
+        return $this->success(
+            OrganizationInvitationData::collect(
+                $invitations->map(
+                    fn (OrganizationInvitation $invitation): OrganizationInvitationData => OrganizationInvitationData::fromModel(
+                        $invitation
+                    )
+                ),
+                DataCollection::class
+            )
+        );
     }
 
-    public function store(CreateOrganizationInvitationRequest $request): JsonResponse
+    public function store(CreateOrganizationInvitationData $data, Request $request): JsonResponse
     {
         $payload = $this->invitationService->create(
             $this->currentOrganization($request),
             $this->authenticatedUser($request),
-            $request->toDto(),
+            $data,
         );
 
         return $this->created([
-            'invitation' => OrganizationInvitationData::fromModel($payload['invitation'])->toArray(),
+            'invitation' => OrganizationInvitationData::fromModel($payload['invitation']),
             'token' => $payload['plain_text_token'],
         ], 'Invitation created.');
     }
 
-    public function destroy(Request $request, int $id): JsonResponse
+    public function destroy(Request $request, int $id): Response
     {
         $this->invitationService->delete(
             $this->currentOrganization($request),
@@ -63,16 +73,16 @@ class OrganizationInvitationController extends ApiController
         return $this->noContent();
     }
 
-    public function accept(AcceptOrganizationInvitationRequest $request): JsonResponse
+    public function accept(AcceptOrganizationInvitationData $data, Request $request): JsonResponse
     {
         $invitation = $this->invitationService->accept(
             $this->authenticatedUser($request),
-            $request->toDto(),
+            $data,
         );
 
         return $this->success([
-            'invitation' => OrganizationInvitationData::fromModel($invitation)->toArray(),
-            'organization' => OrganizationData::fromModel($invitation->organization)->toArray(),
+            'invitation' => OrganizationInvitationData::fromModel($invitation),
+            'organization' => OrganizationData::fromModel($invitation->organization),
         ], 'Invitation accepted.');
     }
 

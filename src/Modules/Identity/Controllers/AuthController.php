@@ -4,8 +4,9 @@ namespace Modules\Identity\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Identity\Requests\LoginRequest;
-use Modules\Identity\Requests\RegisterRequest;
+use Illuminate\Http\Response;
+use Modules\Identity\DataTransferObjects\LoginData;
+use Modules\Identity\DataTransferObjects\RegisterData;
 use Modules\Identity\Services\ApiTokenService;
 use Modules\Identity\Services\AuthenticationService;
 use Modules\Identity\Services\RegistrationService;
@@ -23,28 +24,28 @@ class AuthController extends ApiController
     ) {
     }
 
-    public function register(RegisterRequest $request): JsonResponse
+    public function register(RegisterData $data): JsonResponse
     {
-        $payload = $this->registrationService->register($request->toDto());
+        $payload = $this->registrationService->register($data);
 
         return $this->created([
             'token' => $payload['plain_text_token'],
-            'user' => UserData::fromModel($payload['user'])?->toArray(),
-            'organization' => OrganizationData::fromModel($payload['organization'])->toArray(),
+            'user' => UserData::fromModel($payload['user']),
+            'organization' => OrganizationData::fromModel($payload['organization']),
         ], 'Registered.');
     }
 
-    public function login(LoginRequest $request): JsonResponse
+    public function login(LoginData $data): JsonResponse
     {
-        $payload = $this->authenticationService->attempt($request->toDto());
+        $payload = $this->authenticationService->attempt($data);
 
         return $this->success([
             'token' => $payload['plain_text_token'],
-            'user' => UserData::fromModel($payload['user'])?->toArray(),
+            'user' => UserData::fromModel($payload['user']),
         ], 'Authenticated.');
     }
 
-    public function logout(Request $request): JsonResponse
+    public function logout(Request $request): Response
     {
         $this->apiTokenService->revokeCurrentToken($request);
 
@@ -57,13 +58,9 @@ class AuthController extends ApiController
             ?? $request->attributes->get('current_organization');
 
         return $this->success([
-            'user' => UserData::fromModel($request->user())?->toArray(),
+            'user' => UserData::fromModel($request->user()),
             'organization' => $organization instanceof Organization
-                ? [
-                    'id' => $organization->getKey(),
-                    'name' => $organization->name,
-                    'slug' => $organization->slug,
-                ]
+                ? OrganizationData::fromModel($organization)
                 : null,
         ]);
     }

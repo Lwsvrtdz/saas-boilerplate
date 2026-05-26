@@ -6,18 +6,18 @@ use Modules\Shared\DataTransferObjects\DataTransferObject;
 use Modules\Tenancy\DataTransferObjects\OrganizationData;
 use Modules\Tenancy\Models\Organization;
 use Modules\User\Models\User;
+use Spatie\LaravelData\Attributes\DataCollectionOf;
+use Spatie\LaravelData\DataCollection;
 
 class UserData extends DataTransferObject
 {
-    /**
-     * @param array<int, array<string, mixed>> $organizations
-     */
     public function __construct(
         public int $id,
         public string $name,
         public string $email,
-        public ?array $currentOrganization,
-        public array $organizations,
+        public ?OrganizationData $currentOrganization,
+        #[DataCollectionOf(OrganizationData::class)]
+        public DataCollection $organizations,
     ) {
     }
 
@@ -34,11 +34,14 @@ class UserData extends DataTransferObject
             name: $user->name,
             email: $user->email,
             currentOrganization: $user->currentOrganization instanceof Organization
-                ? OrganizationData::fromModel($user->currentOrganization)->toArray()
+                ? OrganizationData::fromModel($user->currentOrganization)
                 : null,
-            organizations: $user->organizations
-                ->map(fn (Organization $organization): array => OrganizationData::fromModel($organization)->toArray())
-                ->all(),
+            organizations: OrganizationData::collect(
+                $user->organizations->map(
+                    fn (Organization $organization): OrganizationData => OrganizationData::fromModel($organization)
+                ),
+                DataCollection::class
+            ),
         );
     }
 }
