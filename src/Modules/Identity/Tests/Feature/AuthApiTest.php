@@ -2,6 +2,7 @@
 
 use Database\Seeders\AccessControlSeeder;
 use Modules\Access\Models\Role;
+use Modules\Access\Models\RoleAssignment;
 use Modules\Access\Services\AuthorizationService;
 use Modules\Identity\Models\ApiToken;
 use Modules\Identity\Services\ApiTokenService;
@@ -11,6 +12,58 @@ use Modules\User\Models\User;
 
 beforeEach(function (): void {
     $this->seed(AccessControlSeeder::class);
+});
+
+it('can register a user with their first organization and owner access', function (): void {
+    $response = $this->postJson('/api/auth/register', [
+        'name' => 'Taylor Otwell',
+        'email' => 'taylor@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'device_name' => 'pest-suite',
+    ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('message', 'Registered.')
+        ->assertJsonPath('data.user.email', 'taylor@example.com')
+        ->assertJsonPath('data.user.currentOrganization.slug', 'taylor-otwells-organization')
+        ->assertJsonPath('data.organization.slug', 'taylor-otwells-organization')
+        ->assertJsonStructure([
+            'data' => [
+                'token',
+                'user' => ['id', 'name', 'email', 'currentOrganization', 'organizations'],
+                'organization' => ['id', 'name', 'slug', 'settings'],
+            ],
+        ]);
+
+    $user = User::query()->where('email', 'taylor@example.com')->firstOrFail();
+    $organization = Organization::query()->where('slug', 'taylor-otwells-organization')->firstOrFail();
+    $ownerRole = Role::query()->where('slug', 'owner')->firstOrFail();
+
+    expect($user->current_organization_id)->toBe($organization->getKey())
+        ->and($organization->owner_id)->toBe($user->getKey())
+        ->and($user->organizations()->whereKey($organization->getKey())->exists())->toBeTrue()
+        ->and(RoleAssignment::query()
+            ->where('role_id', $ownerRole->getKey())
+            ->where('user_id', $user->getKey())
+            ->where('organization_id', $organization->getKey())
+            ->exists())->toBeTrue()
+        ->and(ApiToken::query()->count())->toBe(1)
+        ->and(Organization::current()?->is($organization))->toBeTrue();
+});
+
+it('validates registration input', function (): void {
+    User::factory()->create(['email' => 'taken@example.com']);
+
+    $this->postJson('/api/auth/register', [
+        'name' => '',
+        'email' => 'taken@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'different-password',
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['name', 'email', 'password']);
 });
 
 it('can log in and receive the authenticated user payload', function (): void {

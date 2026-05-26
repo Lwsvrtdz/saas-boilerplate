@@ -8,6 +8,7 @@ use Modules\Tenancy\Controllers\OrganizationController;
 use Modules\User\Controllers\UserController;
 
 Route::prefix('auth')->group(function (): void {
+    Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
 
     Route::middleware('auth:api')->group(function (): void {
